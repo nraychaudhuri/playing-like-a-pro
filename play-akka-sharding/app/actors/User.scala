@@ -10,26 +10,25 @@ import scala.concurrent.duration._
 case class GameState(level: Int, state: Any)
 
 
-class User extends Actor {
+class User extends PersistentActor {
   import User._
 
   import context.dispatcher
 
-
-//  override def persistenceId = "users"
+  override def persistenceId = "users"
 
   var state: GameState = _
 
   context.system.scheduler.schedule(2 seconds, 5 seconds, self, TakeSnapshot)
 
-//  override val receiveRecover: Receive = {
-//    case e: GameStateChanged => updateState(e)
-//
-//    case SnapshotOffer(_, snapshot: GameState) => state = snapshot
-//  }
+  override val receiveRecover: Receive = {
+    case e: GameStateChanged => updateState(e)
+
+    case SnapshotOffer(_, snapshot: GameState) => state = snapshot
+  }
 
 
-  override def receive: Receive = {
+  override def receiveCommand: Receive = {
   	case Login(userId) =>
       Logger.info("New user logged in")
       loadLastSavedStateFromStorage()
@@ -37,14 +36,11 @@ class User extends Actor {
       Logger.info("Stopping the actor as user logout")
       context.stop(self)
   	case ChangeState(userId, newState) =>
-      //persist(GameStateChanged(userId, newState))(updateState)
-      updateState(GameStateChanged(userId, newState))
+      persist(GameStateChanged(userId, newState))(updateState)
 
-//    case TakeSnapshot =>
-//      saveSnapshot(state)
+    case TakeSnapshot =>
+      saveSnapshot(state)
   }
-
-
 
   private def updateState(gs: GameStateChanged) = {
     Logger.info(s"Applying the delta change for the userId = ${gs.userId}")
@@ -68,7 +64,6 @@ object User {
   case class Login(userId: String) extends UserMessage
   case class Logout(userId: String) extends UserMessage
   case class ChangeState(userId: String, newState: Any) extends UserMessage
-
 
   //events
   case class GameStateChanged(userId: String, newState: Any) extends UserMessage
